@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+// Next auth
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? @db.Text
+  // necessary for GitHub provider to work
+  refresh_token_expires_in String? @db.Text
+  access_token             String? @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? @db.Text
+  session_state            String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model User {
+  id                String              @id @default(cuid())
+  name              String?
+  email             String?             @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  boards            Board[]
+  boardUsers        BoardUser[]
+  BoardColumn       BoardColumn[]
+  BoardTask         BoardTask[]
+  BoardTaskAssignee BoardTaskAssignee[]
+
+  @@index([name])
+  @@index([email])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum BoardUserRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model BoardUser {
+  id          String        @id @default(cuid())
+  role        BoardUserRole @default(MEMBER)
+  isFavourite Boolean       @default(false)
+  board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId     String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+
+  @@unique([boardId, userId])
+  @@index([boardId])
+  @@index([userId])
+}
+
+model Board {
+  id               String        @id @default(cuid())
+  createdAt        DateTime      @default(now())
+  title            String
+  user             User          @relation(fields: [userId], references: [id])
+  boardUser        BoardUser[]
+  userId           String
+  lastInteractedAt DateTime      @default(now())
+  columns          BoardColumn[]
+
+  @@index([userId])
+}
+
+model BoardColumn {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  title       String
+  board       Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId     String
+  tasks       BoardTask[]
+  color       String      @default("#0ea5e9")
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdById String
+
+  @@index([boardId])
+  @@index([createdById])
+}
+
+model BoardTask {
+  id          String              @id @default(cuid())
+  createdAt   DateTime            @default(now())
+  startDate   DateTime            @default(now())
+  dueDate     DateTime            @default(now())
+  rank        String              @default("0|000000:")
+  title       String
+  description String?
+  column      BoardColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  columnId    String
+  subtasks    BoardSubtask[]
+  createdBy   User                @relation(fields: [createdById], references: [id])
+  createdById String
+  asignees    BoardTaskAssignee[]
+
+  @@index([columnId])
+  @@index([createdById])
+}
+
+model BoardTaskAssignee {
+  id          String    @id @default(cuid())
+  boardTask   BoardTask @relation(fields: [boardTaskId], references: [id])
+  boardTaskId String
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+
+  @@unique([boardTaskId, userId])
+  @@index([boardTaskId])
+  @@index([userId])
+}
+
+model BoardSubtask {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  title     String
+  task      BoardTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  isDone    Boolean   @default(false)
+
+  @@index([taskId])
+}
